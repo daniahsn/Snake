@@ -9,107 +9,129 @@ import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.util.LinkedList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class GameCourt extends JPanel {
-
-    // Game components
-    private Snake snake; // The snake, controlled by keyboard input
-    private Apple apple; // Apple that doesn't move, repositions randomly after eaten
-    private GoldenApple goldenApple; // Golden apple that doesn't move,
-    // repositions randomly after eaten
-    private final JLabel status; // Current status text (scoreboard)
-
-
-    // Game state variables
-    private int score = 0; // Keeping track of the local score
-    private int bestScore = 0; // Keeping track of the best score
-
-    // Button click tracking variables
-    private boolean instructionsClicked;
-    // Checking whether the instructions button has been clicked
-    private boolean reloadClicked; // Checking whether the reload button has been clicked
-    private boolean saveClicked; // Checking whether the save button has been clicked
-
-    // Game images
-    private static BufferedImage gameOverImg; // Game over image
-    private static BufferedImage instructionsImg; // Instructions image
-
-    // Game state
-    private boolean playing = false; // Checking whether the game is currently playing
-
-    // Timer for game loop
-    private final Timer timer;
+    // Logger for error handling
+    private static final Logger LOGGER = Logger.getLogger(GameCourt.class.getName());
 
     // Game constants
     public static final int BOARD_WIDTH = 600;
     public static final int BOARD_HEIGHT = 400;
+    private static final int TIMER_INTERVAL = 30;
+    private static final String BEST_SCORE_PATH = "files/bestScore.txt";
+    private static final String GAME_STATE_PATH = "files/gameState.txt";
+    private static final String SNAKE_OBJS_PATH = "files/snakeObjs.txt";
+    private static final String APPLE_OBJS_PATH = "files/appleObjs.txt";
+    private static final String GOLDEN_APPLE_OBJS_PATH = "files/goldenAppleObjs.txt";
+    private static final double GOLDEN_APPLE_SPAWN_CHANCE = 0.2;
+    private static final int MAX_APPLES = 4;
+    private static final int MAX_GOLDEN_APPLES = 2;
 
+    // Game components
+    private Snake snake;
+    private Apple apple;
+    private GoldenApple goldenApple;
+    private final JLabel status;
 
+    // Game state variables
+    private int score = 0;
+    private int bestScore = 0;
+    private boolean playing = false;
+    private boolean instructionsClicked;
+    private boolean reloadClicked;
+    private boolean saveClicked;
+
+    // Game images
+    private BufferedImage gameOverImg;
+    private BufferedImage instructionsImg;
+
+    // Timer for game loop
+    private final Timer timer;
 
     /**
      * Initializes the game board.
      */
     public GameCourt(JLabel statusInit) {
-        // creates border around the court area, JComponent method
+        // Creates border around the court area, JComponent method
         setBorder(BorderFactory.createLineBorder(Color.BLACK));
-
         setBackground(Color.WHITE);
 
-        //try to read images
+        loadGameImages();
+        loadBestScore();
+
+        // Start the timer, start the game
+        ActionListener start = e -> begin();
+        timer = new Timer(TIMER_INTERVAL, start);
+        timer.start();
+        
+        setFocusable(true);
+        setupKeyboardControls();
+
+        status = statusInit; // initializes the status JLabel
+    }
+
+    /**
+     * Loads game images from files.
+     */
+    private void loadGameImages() {
         try {
             gameOverImg = ImageIO.read(new File("files/GameOver.png"));
             instructionsImg = ImageIO.read(new File("files/instructions.jpg"));
         } catch (IOException e) {
-            System.out.println("error");
+            LOGGER.log(Level.SEVERE, "Failed to load game images", e);
         }
+    }
 
-        //try to read best score file
-        BufferedReader reader = null;
-        try {
-            reader = new BufferedReader(new FileReader("files/bestScore.txt"));
-        } catch (FileNotFoundException e) {
-            System.out.println("error");
+    /**
+     * Loads the best score from file.
+     */
+    private void loadBestScore() {
+        try (BufferedReader reader = new BufferedReader(new FileReader(BEST_SCORE_PATH))) {
+            bestScore = Integer.parseInt(reader.readLine().trim());
+        } catch (IOException | NumberFormatException e) {
+            LOGGER.log(Level.INFO, "Could not load best score, using default", e);
+            // If the file doesn't exist or has invalid content, bestScore remains 0
         }
-        try {
-            if (reader != null) {
-                //set bestScore = best score written on file
-                bestScore = Integer.parseInt(reader.readLine().trim());
-            }
-        } catch (IOException e) {
-            System.out.println("error");
-        }
+    }
 
-        //start the timer, start the game
-        ActionListener start = e -> begin();
-        timer = new Timer(30, start);
-        timer.start();
-        setFocusable(true);
+    /**
+     * Sets up keyboard controls for the snake.
+     */
+    private void setupKeyboardControls() {
         addKeyListener(new KeyAdapter() {
             public void keyPressed(KeyEvent e) {
                 if (!timer.isRunning()) {
                     timer.start();
                 }
-                if (e.getKeyCode() == KeyEvent.VK_LEFT) {
-                    snake.setVy(0);
-                    snake.setVx(-snake.getSnakeVX());
-                } else if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
-                    snake.setVy(0);
-                    snake.setVx(snake.getSnakeVX());
-                } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
-                    snake.setVx(0);
-                    snake.setVy(snake.getSnakeVY());
-                } else if (e.getKeyCode() == KeyEvent.VK_UP) {
-                    snake.setVx(0);
-                    snake.setVy(-snake.getSnakeVY());
+
+                switch (e.getKeyCode()) {
+                    case KeyEvent.VK_LEFT:
+                        snake.setVy(0);
+                        snake.setVx(-snake.getSnakeVX());
+                        break;
+                    case KeyEvent.VK_RIGHT:
+                        snake.setVy(0);
+                        snake.setVx(snake.getSnakeVX());
+                        break;
+                    case KeyEvent.VK_DOWN:
+                        snake.setVx(0);
+                        snake.setVy(snake.getSnakeVY());
+                        break;
+                    case KeyEvent.VK_UP:
+                        snake.setVx(0);
+                        snake.setVy(-snake.getSnakeVY());
+                        break;
+                    default:
+                        // Ignore other keys
+                        break;
                 }
             }
         });
-
-        status = statusInit; // initializes the status JLabel
     }
 
     // GETTERS FOR TESTING
-
     public boolean isPlaying() {
         return playing;
     }
@@ -137,307 +159,333 @@ public class GameCourt extends JPanel {
         if (!timer.isRunning()) {
             timer.start();
         }
+        
         // Reset game components and variables
         snake = new Snake(BOARD_WIDTH, BOARD_HEIGHT);
         apple = new Apple(BOARD_WIDTH, BOARD_HEIGHT);
         goldenApple = new GoldenApple(BOARD_WIDTH, BOARD_HEIGHT);
+        
         snake.setSnakeVX(3);
         snake.setSnakeVY(3);
         score = 0;
-        status.setText("SCORE: " + score + " / BEST: " + bestScore);
+        
+        updateScoreDisplay();
+        
         instructionsClicked = false;
         playing = true;
+        
         repaint();
         requestFocusInWindow();
     }
 
-    //helper method to generate a new apple, golden apple 20% of the time
+    /**
+     * Updates the score display.
+     */
+    private void updateScoreDisplay() {
+        status.setText("SCORE: " + score + " / BEST: " + bestScore);
+    }
 
+    /**
+     * Helper method to generate apples, with golden apples appearing less frequently.
+     */
     public void generateApples() {
-        if (apple.getGameObjects().size() < 4) {
+        if (apple.getGameObjects().size() < MAX_APPLES) {
             apple.add();
         }
-        if (Math.random() <= 0.2 && goldenApple.getGameObjects().size() < 2) {
+        
+        if (Math.random() <= GOLDEN_APPLE_SPAWN_CHANCE && 
+            goldenApple.getGameObjects().size() < MAX_GOLDEN_APPLES) {
             goldenApple.add();
         }
     }
 
-
     /**
-     * This method is called every time the timer defined in the constructor
-     * triggers.
+     * This method is called every time the timer defined in the constructor triggers.
+     * It handles the main game logic.
      */
     public void begin() {
         if (playing) {
-
             snake.move();
 
-
-
-
-
-
-
-
-            //if snake hits an apple, increase length of snake
-            if (apple.intersects(snake)) {
-                apple.updateSnake(snake);
-
-                //increase score by 1 point
-                score += 1;
-                status.setText("SCORE: " + score + " / BEST: " + bestScore);
-                generateApples();
-
-
-            }
-
-            //if snake hits a golden apple, increase the velocity of snake
-            if (goldenApple.intersects(snake)) {
-                goldenApple.updateSnake(snake);
-
-                //increase score by 5 points
-                score += 5;
-                status.setText("SCORE: " + score + " / BEST: " + bestScore);
-
-                generateApples();
-
-            }
-
-            if (score > bestScore) {
-
-                //set new best score
-                bestScore = score;
-                status.setText("SCORE: " + score + " / BEST: " + bestScore);
-
-                //write new best score to file
-                try {
-                    BufferedWriter writer =
-                            new BufferedWriter(new FileWriter("files/bestScore.txt"));
-                    writer.write(Integer.toString(score));
-                    writer.close();
-                } catch (IOException e) {
-                    System.out.println("error");
-                }
-
-            }
-
-            //if snake hits itself or a wall, game is over
+            // Check collisions with food
+            handleFoodCollisions();
+            
+            // Check for game over conditions
             if (snake.hasHitItself() || snake.hasHitWall()) {
                 playing = false;
             }
-            // update the display
+            
+            // Update the display
             repaint();
         }
     }
 
+    /**
+     * Handles collisions between the snake and food items.
+     */
+    private void handleFoodCollisions() {
+        // If snake hits an apple, increase length of snake
+        if (apple.intersects(snake)) {
+            apple.updateSnake(snake);
+            
+            // Increase score by 1 point
+            score += 1;
+            updateScoreAndGenerateFood();
+        }
+
+        // If snake hits a golden apple, increase the velocity of snake
+        if (goldenApple.intersects(snake)) {
+            goldenApple.updateSnake(snake);
+            
+            // Increase score by 5 points
+            score += 5;
+            updateScoreAndGenerateFood();
+        }
+    }
+
+    /**
+     * Updates the score display and generates new food items.
+     */
+    private void updateScoreAndGenerateFood() {
+        // Update best score if needed
+        if (score > bestScore) {
+            bestScore = score;
+            saveBestScore();
+        }
+        
+        updateScoreDisplay();
+        generateApples();
+    }
+
+    /**
+     * Saves the best score to file.
+     */
+    private void saveBestScore() {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(BEST_SCORE_PATH))) {
+            writer.write(Integer.toString(bestScore));
+        } catch (IOException e) {
+            LOGGER.log(Level.WARNING, "Failed to save best score", e);
+        }
+    }
+
+    /**
+     * Shows the instructions screen.
+     */
     public void instructions() {
-        instructionsClicked = true; //if instructions are clicked, stop the playing screen
+        instructionsClicked = true;
         playing = false;
-        repaint(); // update the display
+        repaint();
         requestFocusInWindow();
     }
 
-    //helper function to write game objects to file
-
-    public void writeGameObjectsToFile(String filePath, LinkedList<Point> gameObjects) {
-        try {
-            BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, false));
-
+    /**
+     * Helper function to write game objects to file.
+     */
+    private void writeGameObjectsToFile(String filePath, LinkedList<Point> gameObjects) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, false))) {
             for (Point gameObject : gameObjects) {
                 writer.write(Integer.toString(gameObject.x));
                 writer.write(",");
                 writer.write(Integer.toString(gameObject.y));
                 writer.newLine();
             }
-
-            writer.close();
         } catch (IOException e) {
-            System.out.println("error");
+            LOGGER.log(Level.WARNING, "Failed to write game objects to " + filePath, e);
         }
     }
 
-
-    // write game state to file
-    // save snake and apple positions, snake velocity, and current score
+    /**
+     * Saves the current game state to files.
+     */
     public void save() {
-        try {
-            BufferedWriter stateWriter = getBufferedWriter();
-            stateWriter.close();
+        // Save game state
+        try (BufferedWriter stateWriter = new BufferedWriter(new FileWriter(GAME_STATE_PATH, false))) {
+            // Write snake information
+            stateWriter.write("snake," + snake.getPx() + "," + snake.getPy());
+            stateWriter.newLine();
+            
+            // Write apple information
+            stateWriter.write("apple," + apple.getPx() + "," + apple.getPy());
+            stateWriter.newLine();
+            
+            // Write golden apple information
+            stateWriter.write("golden," + goldenApple.getPx() + "," + goldenApple.getPy());
+            stateWriter.newLine();
+            
+            // Write snake velocity
+            stateWriter.write(snake.getSnakeVX() + "," + snake.getSnakeVY());
+            stateWriter.newLine();
+            
+            // Write current score
+            stateWriter.write(Integer.toString(score));
         } catch (IOException e) {
-            System.out.println("error");
+            LOGGER.log(Level.SEVERE, "Failed to save game state", e);
         }
 
-        writeGameObjectsToFile("files/snakeObjs.txt", snake.getGameObjects());
-        writeGameObjectsToFile("files/appleObjs.txt", apple.getGameObjects());
-        writeGameObjectsToFile("files/goldenAppleObjs.txt", goldenApple.getGameObjects());
+        // Save game objects
+        writeGameObjectsToFile(SNAKE_OBJS_PATH, snake.getGameObjects());
+        writeGameObjectsToFile(APPLE_OBJS_PATH, apple.getGameObjects());
+        writeGameObjectsToFile(GOLDEN_APPLE_OBJS_PATH, goldenApple.getGameObjects());
 
-        // update buttons
+        // Update button states
         saveClicked = true;
         instructionsClicked = false;
         reloadClicked = false;
-        timer.stop();
-        playing = true;
-
-        repaint(); // update the display
-        requestFocusInWindow();
-    }
-
-    //Helper method to get a BufferedWriter for writing the game state to a file.
-
-
-    private BufferedWriter getBufferedWriter() throws IOException {
-        BufferedWriter stateWriter =
-                new BufferedWriter(new FileWriter("files/gameState.txt",false));
-
-        stateWriter.write("snake," + snake.getPx() + "," + snake.getPy());
-        stateWriter.newLine();
-        stateWriter.write("apple," + apple.getPx() + "," + apple.getPy());
-        stateWriter.newLine();
-        stateWriter.write("golden," + goldenApple.getPx() + "," + goldenApple.getPy());
-        stateWriter.newLine();
-        stateWriter.write(snake.getSnakeVX() + "," + snake.getSnakeVY());
-        stateWriter.newLine();
-        stateWriter.write(Integer.toString(score));
-        return stateWriter;
-    }
-
-    // Helper method to read game objects from a file.
-
-    private LinkedList<Point> readGameObjectsFromFile(String fileName) {
-        LinkedList<Point> gameObjects = new LinkedList<>();
-        FileLineIterator iterator = new FileLineIterator("files/" + fileName);
-        String[] coords;
-
-        while (iterator.hasNext()) {
-            coords = iterator.next().split(",");
-            gameObjects.add(new Point(Integer.parseInt(coords[0]), Integer.parseInt(coords[1])));
-        }
-
-        return gameObjects;
-    }
-
-
-    public void reload() {
-        int snakePx = 0, snakePy = 0, applePx = 0, applePy = 0,
-                goldenPx = 0, goldenPy = 0, snakeVX = 0, snakeVY = 0,
-                localScore = 0;
-
-        try {
-            BufferedReader stateReader = new BufferedReader(new FileReader("files/gameState.txt"));
-
-            //read in snake position
-            String snakePosLine = null;
-            try {
-                try {
-                    snakePosLine = stateReader.readLine().trim();
-                } catch (NullPointerException e) {
-                    reset();
-                    return;
-                }
-            } catch (IOException e) {
-                System.out.println("error");
-            }
-            String [] snakePosition;
-            if (snakePosLine != null) {
-                snakePosition = snakePosLine.split(",");
-                snakePx = Integer.parseInt(snakePosition[1]);
-                snakePy = Integer.parseInt(snakePosition[2]);
-            }
-
-            //read in apple position
-            String applePosLine = null;
-            try {
-                applePosLine = stateReader.readLine().trim();
-            } catch (IOException e) {
-                System.out.println("error");
-            }
-            String [] applePosition;
-            if (applePosLine != null) {
-                applePosition = applePosLine.split(",");
-                applePx = Integer.parseInt(applePosition[1]);
-                applePy = Integer.parseInt(applePosition[2]);
-            }
-
-            //read in golden apple position
-            String goldenPosLine = null;
-            try {
-                goldenPosLine = stateReader.readLine().trim();
-            } catch (IOException e) {
-                System.out.println("error");
-            }
-            String [] goldenPosition;
-            if (goldenPosLine != null) {
-                goldenPosition = goldenPosLine.split(",");
-                goldenPx = Integer.parseInt(goldenPosition[1]);
-                goldenPy = Integer.parseInt(goldenPosition[2]);
-            }
-
-            //read snakeVX and snakeVY
-            String velocityLine = null;
-            try {
-                velocityLine = stateReader.readLine().trim();
-            } catch (IOException e) {
-                System.out.println("error");
-            }
-            String [] velocity;
-            if (velocityLine != null) {
-                velocity = velocityLine.split(",");
-                snakeVX = Integer.parseInt(velocity[0]);
-                snakeVY = Integer.parseInt(velocity[1]);
-            }
-
-            //read in local score at time of reloaded game
-            String scoreLine = null;
-            try {
-                scoreLine = stateReader.readLine().trim();
-            } catch (IOException e) {
-                System.out.println("error");
-            }
-            if (scoreLine != null) {
-                localScore = Integer.parseInt(scoreLine);
-            }
-
-        } catch (FileNotFoundException e) {
-            reset();
-        }
-
-        LinkedList<Point> snakeObjs = readGameObjectsFromFile("snakeObjs.txt");
-        LinkedList<Point> appleObjs = readGameObjectsFromFile("appleObjs.txt");
-        LinkedList<Point> goldenAppleObjs = readGameObjectsFromFile("goldenAppleObjs.txt");
-
-
-        snake = new Snake(snakePx, snakePy, BOARD_WIDTH, BOARD_HEIGHT, snakeObjs);
-        apple = new Apple(applePx, applePy, BOARD_WIDTH, BOARD_HEIGHT, appleObjs);
-        goldenApple = new GoldenApple(goldenPx, goldenPy, BOARD_WIDTH, BOARD_HEIGHT,
-                goldenAppleObjs);
-
-        snake.setSnakeVX(snakeVX);
-        snake.setSnakeVY(snakeVY);
-        score = localScore;
-        status.setText("SCORE: " + score + " / BEST: " + bestScore);
-
-        reloadClicked = true;
-        saveClicked = false;
-        instructionsClicked = false;
+        
         timer.stop();
         playing = true;
 
         repaint();
-
-        // Makes sure this component has keyboard/mouse focus
         requestFocusInWindow();
     }
 
+    /**
+     * Helper method to read game objects from a file.
+     */
+    private LinkedList<Point> readGameObjectsFromFile(String fileName) {
+        LinkedList<Point> gameObjects = new LinkedList<>();
+        
+        try {
+            FileLineIterator iterator = new FileLineIterator("files/" + fileName);
+            
+            while (iterator.hasNext()) {
+                String[] coords = iterator.next().split(",");
+                gameObjects.add(new Point(
+                    Integer.parseInt(coords[0]), 
+                    Integer.parseInt(coords[1])
+                ));
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error reading game objects from " + fileName, e);
+        }
+        
+        return gameObjects;
+    }
+
+    /**
+     * Reloads a saved game state.
+     */
+    public void reload() {
+        GameState gameState = loadGameState();
+        
+        if (gameState == null) {
+            reset();
+            return;
+        }
+        
+        // Load the saved game objects
+        LinkedList<Point> snakeObjs = readGameObjectsFromFile("snakeObjs.txt");
+        LinkedList<Point> appleObjs = readGameObjectsFromFile("appleObjs.txt");
+        LinkedList<Point> goldenAppleObjs = readGameObjectsFromFile("goldenAppleObjs.txt");
+
+        // Recreate game objects from saved state
+        snake = new Snake(
+            gameState.snakePx, gameState.snakePy, 
+            BOARD_WIDTH, BOARD_HEIGHT, snakeObjs
+        );
+        
+        apple = new Apple(
+            gameState.applePx, gameState.applePy, 
+            BOARD_WIDTH, BOARD_HEIGHT, appleObjs
+        );
+        
+        goldenApple = new GoldenApple(
+            gameState.goldenPx, gameState.goldenPy, 
+            BOARD_WIDTH, BOARD_HEIGHT, goldenAppleObjs
+        );
+
+        // Set snake velocity from saved state
+        snake.setSnakeVX(gameState.snakeVX);
+        snake.setSnakeVY(gameState.snakeVY);
+        
+        // Set score from saved state
+        score = gameState.score;
+        updateScoreDisplay();
+
+        // Update button states
+        reloadClicked = true;
+        saveClicked = false;
+        instructionsClicked = false;
+        
+        timer.stop();
+        playing = true;
+
+        repaint();
+        requestFocusInWindow();
+    }
+
+    /**
+     * Loads the game state from file.
+     */
+    private GameState loadGameState() {
+        GameState state = new GameState();
+        
+        try (BufferedReader stateReader = new BufferedReader(new FileReader(GAME_STATE_PATH))) {
+            // Read snake position
+            String snakePosLine = stateReader.readLine();
+            if (snakePosLine == null) {
+                return null;
+            }
+            
+            String[] snakePosition = snakePosLine.trim().split(",");
+            state.snakePx = Integer.parseInt(snakePosition[1]);
+            state.snakePy = Integer.parseInt(snakePosition[2]);
+
+            // Read apple position
+            String applePosLine = stateReader.readLine();
+            if (applePosLine != null) {
+                String[] applePosition = applePosLine.trim().split(",");
+                state.applePx = Integer.parseInt(applePosition[1]);
+                state.applePy = Integer.parseInt(applePosition[2]);
+            }
+
+            // Read golden apple position
+            String goldenPosLine = stateReader.readLine();
+            if (goldenPosLine != null) {
+                String[] goldenPosition = goldenPosLine.trim().split(",");
+                state.goldenPx = Integer.parseInt(goldenPosition[1]);
+                state.goldenPy = Integer.parseInt(goldenPosition[2]);
+            }
+
+            // Read snake velocity
+            String velocityLine = stateReader.readLine();
+            if (velocityLine != null) {
+                String[] velocity = velocityLine.trim().split(",");
+                state.snakeVX = Integer.parseInt(velocity[0]);
+                state.snakeVY = Integer.parseInt(velocity[1]);
+            }
+
+            // Read score
+            String scoreLine = stateReader.readLine();
+            if (scoreLine != null) {
+                state.score = Integer.parseInt(scoreLine.trim());
+            }
+            
+            return state;
+        } catch (FileNotFoundException e) {
+            LOGGER.log(Level.INFO, "No saved game state found", e);
+            return null;
+        } catch (IOException | NumberFormatException e) {
+            LOGGER.log(Level.WARNING, "Error loading game state", e);
+            return null;
+        }
+    }
+
+    /**
+     * Paints the game components on the screen.
+     */
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        if (instructionsClicked) { //draw instructions image if instruction button pressed
+        if (instructionsClicked) {
+            // Draw instructions image if instruction button pressed
             g.drawImage(instructionsImg, 50, 100, 500, 200, null);
-        } else if ((!playing)) { //if not playing draw game over image
+        } else if (!playing) {
+            // If not playing draw game over image
             g.drawImage(gameOverImg, 50, 100, 500, 200, null);
-        } else { //if playing or reload/save clicked
-            //draw snake and apples
+        } else {
+            // If playing or reload/save clicked, draw snake and apples
             snake.draw(g);
             apple.draw(g);
             goldenApple.draw(g);
@@ -450,5 +498,20 @@ public class GameCourt extends JPanel {
     @Override
     public Dimension getPreferredSize() {
         return new Dimension(BOARD_WIDTH, BOARD_HEIGHT);
+    }
+    
+    /**
+     * Inner class to hold game state data when loading/saving.
+     */
+    private static class GameState {
+        int snakePx = 0;
+        int snakePy = 0; 
+        int applePx = 0;
+        int applePy = 0;
+        int goldenPx = 0;
+        int goldenPy = 0;
+        int snakeVX = 0;
+        int snakeVY = 0;
+        int score = 0;
     }
 }
