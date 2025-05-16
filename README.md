@@ -6,7 +6,7 @@
 - **`GameCourt`**: Manages the main game loop, including object movement, collision detection, and user input.
 - **`GameObj`**: Abstract base class for all visual game elements (position, size, etc.).
 - **`Snake`**: Represents the snake; manages direction, growth, and self-collision logic.
-- **`Apple` and `GoldenApple`**: Implement `Food` and define how different food types affect the game state.
+- **`Apple`,`GoldenApple` and `PoisonApple`**: Implement `Food` and define how different food types affect the game state.
 - **Other utility classes**: Handle image loading, score tracking, and file operations.
 
 This game implements four core Java concepts. Below is a breakdown of how each is applied and what features they support:
@@ -48,6 +48,11 @@ Encapsulation in this project allows for unit testing of independent classes:
 
 This modular design makes it easier to test classes in isolation and ensures correctness of individual components.
 
+
+
+## 🧑‍💻 Acknowledgements
+
+Developed for **CIS 1200: Programming Languages and Techniques**, University of Pennsylvania.
 
 ## 🌐 External Resources
 
