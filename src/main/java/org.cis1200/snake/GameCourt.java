@@ -28,11 +28,14 @@ public class GameCourt extends JPanel {
     private static final double GOLDEN_APPLE_SPAWN_CHANCE = 0.2;
     private static final int MAX_APPLES = 4;
     private static final int MAX_GOLDEN_APPLES = 2;
+    private static final double POISON_APPLE_SPAWN_CHANCE = 0.05;
+    private static final int MAX_POISON_APPLES = 1;
 
     // Game components
     private Snake snake;
     private Apple apple;
     private GoldenApple goldenApple;
+    private PoisonApple poisonApple;
     private final JLabel status;
 
     // Game state variables
@@ -49,6 +52,7 @@ public class GameCourt extends JPanel {
 
     // Timer for game loop
     private final Timer timer;
+    private javax.swing.Timer poisonAppleTimer;
 
     /**
      * Initializes the game board.
@@ -70,6 +74,7 @@ public class GameCourt extends JPanel {
         setupKeyboardControls();
 
         status = statusInit; // initializes the status JLabel
+        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
     }
 
     /**
@@ -164,6 +169,10 @@ public class GameCourt extends JPanel {
         snake = new Snake(BOARD_WIDTH, BOARD_HEIGHT);
         apple = new Apple(BOARD_WIDTH, BOARD_HEIGHT);
         goldenApple = new GoldenApple(BOARD_WIDTH, BOARD_HEIGHT);
+        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
+        if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
+            poisonAppleTimer.stop();
+        }
         
         snake.setSnakeVX(3);
         snake.setSnakeVY(3);
@@ -196,6 +205,26 @@ public class GameCourt extends JPanel {
         if (Math.random() <= GOLDEN_APPLE_SPAWN_CHANCE && 
             goldenApple.getGameObjects().size() < MAX_GOLDEN_APPLES) {
             goldenApple.add();
+        }
+        
+        // Poison apple: lower chance, only one at a time
+        if (poisonApple.getGameObjects().size() < MAX_POISON_APPLES && Math.random() < POISON_APPLE_SPAWN_CHANCE) {
+            int before = poisonApple.getGameObjects().size();
+            poisonApple.add();
+            int after = poisonApple.getGameObjects().size();
+            if (before == 0 && after > 0) { // Only start timer if a new poison apple was added
+                if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
+                    poisonAppleTimer.stop();
+                }
+                poisonAppleTimer = new javax.swing.Timer(5000, e -> {
+                    SwingUtilities.invokeLater(() -> {
+                        poisonApple.getGameObjects().clear();
+                        repaint();
+                    });
+                });
+                poisonAppleTimer.setRepeats(false);
+                poisonAppleTimer.start();
+            }
         }
     }
 
@@ -239,6 +268,19 @@ public class GameCourt extends JPanel {
             
             // Increase score by 5 points
             score += 5;
+            updateScoreAndGenerateFood();
+        }
+
+        // Poison apple: shrink to half, -5 points, clear timer
+        if (poisonApple.intersects(snake)) {
+            int half = Math.max(1, snake.getGameObjects().size() / 2);
+            while (snake.getGameObjects().size() > half) {
+                snake.getGameObjects().removeLast();
+            }
+            score = Math.max(0, score - 5);
+            if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
+                poisonAppleTimer.stop();
+            }
             updateScoreAndGenerateFood();
         }
     }
@@ -489,6 +531,7 @@ public class GameCourt extends JPanel {
             snake.draw(g);
             apple.draw(g);
             goldenApple.draw(g);
+            poisonApple.draw(g);
         }
     }
 
