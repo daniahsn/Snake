@@ -27,11 +27,7 @@ public class PoisonApple extends GameObj implements Food {
      */
     public PoisonApple(int boardWidth, int boardHeight) {
         super(INIT_VEL_X, INIT_VEL_Y, INIT_POS_X, INIT_POS_Y, SIZE, SIZE, boardWidth, boardHeight);
-        try {
-            poisonAppleImg = ImageIO.read(new File("files/poisonApple.png"));
-        } catch (IOException e) {
-            System.out.println("Error loading poison apple image.");
-        }
+        loadImage();
     }
 
     /**
@@ -41,6 +37,13 @@ public class PoisonApple extends GameObj implements Food {
                     int boardHeight, LinkedList<Point> objs) {
         super(INIT_VEL_X, INIT_VEL_Y, positionX, positionY, SIZE,
                 SIZE, boardWidth, boardHeight, objs);
+        loadImage();
+    }
+    
+    /**
+     * Loads the poison apple image
+     */
+    private void loadImage() {
         try {
             poisonAppleImg = ImageIO.read(new File("files/poisonApple.png"));
         } catch (IOException e) {
@@ -51,6 +54,7 @@ public class PoisonApple extends GameObj implements Food {
     /**
      * Updates the snake when it consumes the poison apple - shortens the snake.
      */
+    @Override
     public void updateSnake(Snake snake) {
         // Shorten the snake by 2 segments (if possible)
         snake.shrink(2);

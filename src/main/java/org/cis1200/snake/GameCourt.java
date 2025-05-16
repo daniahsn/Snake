@@ -51,7 +51,7 @@ public class GameCourt extends JPanel {
     private BufferedImage instructionsImg;
 
     // Timer for game loop
-    private final Timer timer;
+    private final javax.swing.Timer timer;
     private javax.swing.Timer poisonAppleTimer;
 
     /**
@@ -67,7 +67,7 @@ public class GameCourt extends JPanel {
 
         // Start the timer, start the game
         ActionListener start = e -> begin();
-        timer = new Timer(TIMER_INTERVAL, start);
+        timer = new javax.swing.Timer(TIMER_INTERVAL, start);
         timer.start();
         
         setFocusable(true);
@@ -170,9 +170,9 @@ public class GameCourt extends JPanel {
         apple = new Apple(BOARD_WIDTH, BOARD_HEIGHT);
         goldenApple = new GoldenApple(BOARD_WIDTH, BOARD_HEIGHT);
         poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
-        if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
-            poisonAppleTimer.stop();
-        }
+        
+        // Stop the poison apple timer if it's running
+        stopPoisonAppleTimer();
         
         snake.setSnakeVX(3);
         snake.setSnakeVY(3);
@@ -185,6 +185,15 @@ public class GameCourt extends JPanel {
         
         repaint();
         requestFocusInWindow();
+    }
+
+    /**
+     * Helper method to stop the poison apple timer if it exists and is running
+     */
+    private void stopPoisonAppleTimer() {
+        if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
+            poisonAppleTimer.stop();
+        }
     }
 
     /**
@@ -206,26 +215,7 @@ public class GameCourt extends JPanel {
             goldenApple.getGameObjects().size() < MAX_GOLDEN_APPLES) {
             goldenApple.add();
         }
-        
-        // Poison apple: lower chance, only one at a time
-        if (poisonApple.getGameObjects().size() < MAX_POISON_APPLES && Math.random() < POISON_APPLE_SPAWN_CHANCE) {
-            int before = poisonApple.getGameObjects().size();
-            poisonApple.add();
-            int after = poisonApple.getGameObjects().size();
-            if (before == 0 && after > 0) { // Only start timer if a new poison apple was added
-                if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
-                    poisonAppleTimer.stop();
-                }
-                poisonAppleTimer = new javax.swing.Timer(5000, e -> {
-                    SwingUtilities.invokeLater(() -> {
-                        poisonApple.getGameObjects().clear();
-                        repaint();
-                    });
-                });
-                poisonAppleTimer.setRepeats(false);
-                poisonAppleTimer.start();
-            }
-        }
+       
     }
 
     /**
@@ -278,9 +268,7 @@ public class GameCourt extends JPanel {
                 snake.getGameObjects().removeLast();
             }
             score = Math.max(0, score - 5);
-            if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
-                poisonAppleTimer.stop();
-            }
+            stopPoisonAppleTimer();
             updateScoreAndGenerateFood();
         }
     }
@@ -435,6 +423,10 @@ public class GameCourt extends JPanel {
             gameState.goldenPx, gameState.goldenPy, 
             BOARD_WIDTH, BOARD_HEIGHT, goldenAppleObjs
         );
+
+        // Reset poison apple and its timer
+        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
+        stopPoisonAppleTimer();
 
         // Set snake velocity from saved state
         snake.setSnakeVX(gameState.snakeVX);
