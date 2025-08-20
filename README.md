@@ -1,6 +1,6 @@
 # 🎮 CIS 1200 Snake Game Project
 
-## ✅ Core Concepts
+## Core Concepts
 
 - **`RunSnake`**: Initializes the game window and GUI, including instructions and menus.
 - **`GameCourt`**: Manages the main game loop, including object movement, collision detection, and user input.
