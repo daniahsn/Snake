@@ -11,14 +11,28 @@ import java.io.*;
 import java.util.LinkedList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Random;
 
 public class GameCourt extends JPanel {
     // Logger for error handling
     private static final Logger LOGGER = Logger.getLogger(GameCourt.class.getName());
 
-    // Game constants
-    public static final int BOARD_WIDTH = 600;
-    public static final int BOARD_HEIGHT = 400;
+    // Modern Color Scheme - Cohesive palette
+    private static final Color BACKGROUND_COLOR = new Color(245, 247, 250);
+    private static final Color BORDER_COLOR = new Color(52, 73, 94);
+    private static final Color SNAKE_HEAD_COLOR = new Color(46, 204, 113);
+    private static final Color SNAKE_BODY_COLOR = new Color(52, 152, 219);
+    private static final Color APPLE_COLOR = new Color(231, 76, 60);
+    private static final Color GOLDEN_APPLE_COLOR = new Color(241, 196, 15);
+    private static final Color POISON_APPLE_COLOR = new Color(155, 89, 182);
+    private static final Color TEXT_COLOR = new Color(44, 62, 80);
+    private static final Color BUTTON_BG_COLOR = new Color(52, 152, 219);
+    private static final Color BUTTON_TEXT_COLOR = Color.WHITE;
+    private static final Color BUTTON_HOVER_COLOR = new Color(41, 128, 185);
+
+    // Game constants - these will be dynamic based on window size
+    private int boardWidth = 600;
+    private int boardHeight = 400;
     private static final int TIMER_INTERVAL = 30;
     private static final String BEST_SCORE_PATH = "files/bestScore.txt";
     private static final String GAME_STATE_PATH = "files/gameState.txt";
@@ -31,6 +45,12 @@ public class GameCourt extends JPanel {
     private static final double POISON_APPLE_SPAWN_CHANCE = 0.05;
     private static final int MAX_POISON_APPLES = 1;
 
+    // Animation and Visual Effects
+    private static final int FADE_DURATION = 1000; // milliseconds
+    private static final int SCREEN_SHAKE_DURATION = 300; // milliseconds
+    private static final int PARTICLE_COUNT = 15;
+    private static final int PARTICLE_LIFETIME = 60; // frames
+    
     // Game components
     private Snake snake;
     private Apple apple;
@@ -46,6 +66,14 @@ public class GameCourt extends JPanel {
     private boolean reloadClicked;
     private boolean saveClicked;
 
+    // Animation state variables
+    private long gameOverStartTime = 0;
+    private long screenShakeStartTime = 0;
+    private int screenShakeIntensity = 0;
+    private LinkedList<Particle> particles = new LinkedList<>();
+    private float fadeAlpha = 1.0f;
+    private boolean isFading = false;
+
     // Game images
     private BufferedImage gameOverImg;
     private BufferedImage instructionsImg;
@@ -53,14 +81,52 @@ public class GameCourt extends JPanel {
     // Timer for game loop
     private final javax.swing.Timer timer;
     private javax.swing.Timer poisonAppleTimer;
+    private javax.swing.Timer animationTimer;
+
+    // Random generator for effects
+    private Random random = new Random();
+
+    // Particle class for visual effects
+    private static class Particle {
+        int x, y;
+        int vx, vy;
+        int life;
+        Color color;
+        int size;
+        
+        Particle(int x, int y, Color color) {
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.life = PARTICLE_LIFETIME;
+            Random rand = new Random();
+            this.size = rand.nextInt(4) + 2;
+            this.vx = rand.nextInt(8) - 4;
+            this.vy = rand.nextInt(8) - 4;
+        }
+        
+        void update() {
+            x += vx;
+            y += vy;
+            life--;
+            size = Math.max(1, size - 1);
+        }
+        
+        boolean isDead() {
+            return life <= 0;
+        }
+    }
 
     /**
      * Initializes the game board.
      */
     public GameCourt(JLabel statusInit) {
-        // Creates border around the court area, JComponent method
-        setBorder(BorderFactory.createLineBorder(Color.BLACK));
-        setBackground(Color.WHITE);
+        // Creates border around the court area with enhanced styling
+        setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(BORDER_COLOR, 4),
+            BorderFactory.createLineBorder(new Color(255, 255, 255, 50), 1)
+        ));
+        setBackground(BACKGROUND_COLOR);
 
         loadGameImages();
         loadBestScore();
@@ -70,11 +136,16 @@ public class GameCourt extends JPanel {
         timer = new javax.swing.Timer(TIMER_INTERVAL, start);
         timer.start();
         
+        // Start animation timer for smooth effects
+        ActionListener animate = e -> updateAnimations();
+        animationTimer = new javax.swing.Timer(16, animate); // 60 FPS
+        animationTimer.start();
+        
         setFocusable(true);
         setupKeyboardControls();
 
         status = statusInit; // initializes the status JLabel
-        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
+        poisonApple = new PoisonApple(boardWidth, boardHeight);
     }
 
     /**
@@ -166,10 +237,10 @@ public class GameCourt extends JPanel {
         }
         
         // Reset game components and variables
-        snake = new Snake(BOARD_WIDTH, BOARD_HEIGHT);
-        apple = new Apple(BOARD_WIDTH, BOARD_HEIGHT);
-        goldenApple = new GoldenApple(BOARD_WIDTH, BOARD_HEIGHT);
-        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
+        snake = new Snake(boardWidth, boardHeight);
+        apple = new Apple(boardWidth, boardHeight);
+        goldenApple = new GoldenApple(boardWidth, boardHeight);
+        poisonApple = new PoisonApple(boardWidth, boardHeight);
         
         // Stop the poison apple timer if it's running
         stopPoisonAppleTimer();
@@ -194,6 +265,64 @@ public class GameCourt extends JPanel {
         if (poisonAppleTimer != null && poisonAppleTimer.isRunning()) {
             poisonAppleTimer.stop();
         }
+    }
+
+    /**
+     * Updates animations and visual effects
+     */
+    private void updateAnimations() {
+        // Update particles
+        particles.removeIf(Particle::isDead);
+        particles.forEach(Particle::update);
+        
+        // Update fade effect
+        if (isFading) {
+            long currentTime = System.currentTimeMillis();
+            long elapsed = currentTime - gameOverStartTime;
+            if (elapsed < FADE_DURATION) {
+                fadeAlpha = 1.0f - ((float) elapsed / FADE_DURATION);
+            } else {
+                fadeAlpha = 0.0f;
+                isFading = false;
+            }
+        }
+        
+        // Update screen shake
+        if (screenShakeIntensity > 0) {
+            long currentTime = System.currentTimeMillis();
+            long elapsed = currentTime - screenShakeStartTime;
+            if (elapsed < SCREEN_SHAKE_DURATION) {
+                screenShakeIntensity = (int) (10 * (1.0 - (double) elapsed / SCREEN_SHAKE_DURATION));
+            } else {
+                screenShakeIntensity = 0;
+            }
+        }
+        
+        repaint();
+    }
+
+    /**
+     * Creates particle effects at the specified location
+     */
+    private void createParticleEffect(int x, int y, Color color) {
+        for (int i = 0; i < PARTICLE_COUNT; i++) {
+            // Create particles in a circular pattern around the snake head
+            double angle = (2 * Math.PI * i) / PARTICLE_COUNT;
+            double radius = random.nextDouble() * 25 + 5; // Random radius between 5-30
+            
+            int particleX = x + 10 + (int) (Math.cos(angle) * radius);
+            int particleY = y + 10 + (int) (Math.sin(angle) * radius);
+            
+            particles.add(new Particle(particleX, particleY, color));
+        }
+    }
+
+    /**
+     * Triggers screen shake effect
+     */
+    private void triggerScreenShake() {
+        screenShakeStartTime = System.currentTimeMillis();
+        screenShakeIntensity = 10;
     }
 
     /**
@@ -232,6 +361,9 @@ public class GameCourt extends JPanel {
             // Check for game over conditions
             if (snake.hasHitItself() || snake.hasHitWall()) {
                 playing = false;
+                gameOverStartTime = System.currentTimeMillis();
+                isFading = true;
+                triggerScreenShake();
             }
             
             // Update the display
@@ -245,7 +377,12 @@ public class GameCourt extends JPanel {
     private void handleFoodCollisions() {
         // If snake hits an apple, increase length of snake
         if (apple.intersects(snake)) {
+            // Get the snake's head position for better particle placement
+            Point snakeHead = snake.getGameObjects().getFirst();
             apple.updateSnake(snake);
+            
+            // Create particle effects at snake head position for better visual effect
+            createParticleEffect(snakeHead.x, snakeHead.y, APPLE_COLOR);
             
             // Increase score by 1 point
             score += 1;
@@ -254,7 +391,12 @@ public class GameCourt extends JPanel {
 
         // If snake hits a golden apple, increase the velocity of snake
         if (goldenApple.intersects(snake)) {
+            // Get the snake's head position for better particle placement
+            Point snakeHead = snake.getGameObjects().getFirst();
             goldenApple.updateSnake(snake);
+            
+            // Create golden particle effects at snake head position
+            createParticleEffect(snakeHead.x, snakeHead.y, GOLDEN_APPLE_COLOR);
             
             // Increase score by 5 points
             score += 5;
@@ -263,12 +405,19 @@ public class GameCourt extends JPanel {
 
         // Poison apple: shrink to half, -5 points, clear timer
         if (poisonApple.intersects(snake)) {
+            // Get the snake's head position for better particle placement
+            Point snakeHead = snake.getGameObjects().getFirst();
             int half = Math.max(1, snake.getGameObjects().size() / 2);
             while (snake.getGameObjects().size() > half) {
                 snake.getGameObjects().removeLast();
             }
             score = Math.max(0, score - 5);
             stopPoisonAppleTimer();
+            
+            // Create poison particle effects and screen shake at snake head position
+            createParticleEffect(snakeHead.x, snakeHead.y, POISON_APPLE_COLOR);
+            triggerScreenShake();
+            
             updateScoreAndGenerateFood();
         }
     }
@@ -411,21 +560,21 @@ public class GameCourt extends JPanel {
         // Recreate game objects from saved state
         snake = new Snake(
             gameState.snakePx, gameState.snakePy, 
-            BOARD_WIDTH, BOARD_HEIGHT, snakeObjs
+            boardWidth, boardHeight, snakeObjs
         );
         
         apple = new Apple(
             gameState.applePx, gameState.applePy, 
-            BOARD_WIDTH, BOARD_HEIGHT, appleObjs
+            boardWidth, boardHeight, appleObjs
         );
         
         goldenApple = new GoldenApple(
             gameState.goldenPx, gameState.goldenPy, 
-            BOARD_WIDTH, BOARD_HEIGHT, goldenAppleObjs
+            boardWidth, boardHeight, goldenAppleObjs
         );
 
         // Reset poison apple and its timer
-        poisonApple = new PoisonApple(BOARD_WIDTH, BOARD_HEIGHT);
+        poisonApple = new PoisonApple(boardWidth, boardHeight);
         stopPoisonAppleTimer();
 
         // Set snake velocity from saved state
@@ -511,20 +660,193 @@ public class GameCourt extends JPanel {
     @Override
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
+        
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        
+        // Apply screen shake effect
+        if (screenShakeIntensity > 0) {
+            int shakeX = random.nextInt(screenShakeIntensity * 2) - screenShakeIntensity;
+            int shakeY = random.nextInt(screenShakeIntensity * 2) - screenShakeIntensity;
+            g2d.translate(shakeX, shakeY);
+        }
+
+        // Draw enhanced background with subtle pattern
+        drawEnhancedBackground(g2d);
 
         if (instructionsClicked) {
-            // Draw instructions image if instruction button pressed
-            g.drawImage(instructionsImg, 50, 100, 500, 200, null);
+            // Draw instructions image with enhanced styling
+            drawInstructionsWithStyle(g2d);
         } else if (!playing) {
-            // If not playing draw game over image
-            g.drawImage(gameOverImg, 50, 100, 500, 200, null);
+            // If not playing draw game over image with enhanced fade effect
+            if (fadeAlpha > 0) {
+                drawGameOverWithStyle(g2d);
+            }
         } else {
             // If playing or reload/save clicked, draw snake and apples
-            snake.draw(g);
-            apple.draw(g);
-            goldenApple.draw(g);
-            poisonApple.draw(g);
+            snake.draw(g2d);
+            apple.draw(g2d);
+            goldenApple.draw(g2d);
+            poisonApple.draw(g2d);
         }
+        
+        // Draw enhanced particles
+        drawEnhancedParticles(g2d);
+        
+        // Draw UI overlays
+        drawUIOverlays(g2d);
+        
+        // Reset translation for screen shake
+        if (screenShakeIntensity > 0) {
+            g2d.translate(-g2d.getClipBounds().x, -g2d.getClipBounds().y);
+        }
+        
+        g2d.dispose();
+    }
+
+    /**
+     * Draws enhanced background with subtle pattern
+     */
+    private void drawEnhancedBackground(Graphics2D g2d) {
+        // Create subtle grid pattern
+        g2d.setColor(new Color(255, 255, 255, 10));
+        g2d.setStroke(new BasicStroke(1));
+        
+        for (int x = 0; x < boardWidth; x += 40) {
+            g2d.drawLine(x, 0, x, boardHeight);
+        }
+        for (int y = 0; y < boardHeight; y += 40) {
+            g2d.drawLine(0, y, boardWidth, y);
+        }
+        
+        // Add subtle corner highlights
+        g2d.setColor(new Color(255, 255, 255, 30));
+        g2d.fillOval(0, 0, 60, 60);
+        g2d.fillOval(boardWidth - 60, 0, 60, 60);
+        g2d.fillOval(0, boardHeight - 60, 60, 60);
+        g2d.fillOval(boardWidth - 60, boardHeight - 60, 60, 60);
+    }
+    
+    /**
+     * Draws instructions with enhanced styling
+     */
+    private void drawInstructionsWithStyle(Graphics2D g2d) {
+        // Draw background panel
+        g2d.setColor(new Color(0, 0, 0, 180));
+        g2d.fillRoundRect(40, 80, boardWidth - 80, boardHeight - 160, 20, 20);
+        
+        // Draw instructions image
+        g2d.drawImage(instructionsImg, 60, 100, boardWidth - 120, boardHeight - 200, null);
+        
+        // Add title
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        // g2d.drawString("📖 Game Instructions", 80, 120);
+    }
+    
+    /**
+     * Draws game over with enhanced styling
+     */
+    private void drawGameOverWithStyle(Graphics2D g2d) {
+        // Draw background panel
+        g2d.setColor(new Color(0, 0, 0, 200));
+        g2d.fillRoundRect(40, 80, boardWidth - 80, boardHeight - 160, 20, 20);
+        
+        // Draw game over image
+        g2d.drawImage(gameOverImg, 60, 100, boardWidth - 120, boardHeight - 200, null);
+        
+        // Add score display
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        g2d.drawString("Final Score: " + score, 80, 120);
+        g2d.drawString("Best Score: " + bestScore, 80, 150);
+    }
+    
+    /**
+     * Draws enhanced particle effects
+     */
+    private void drawEnhancedParticles(Graphics2D g2d) {
+        for (Particle particle : particles) {
+            float alpha = (float) particle.life / PARTICLE_LIFETIME;
+            Color particleColor = new Color(
+                particle.color.getRed(),
+                particle.color.getGreen(),
+                particle.color.getBlue(),
+                (int) (255 * alpha)
+            );
+            
+            // Draw particle with glow effect
+            g2d.setColor(new Color(particle.color.getRed(), particle.color.getGreen(), 
+                                  particle.color.getBlue(), (int) (100 * alpha)));
+            g2d.fillOval(particle.x - 2, particle.y - 2, particle.size + 4, particle.size + 4);
+            
+            g2d.setColor(particleColor);
+            g2d.fillOval(particle.x, particle.y, particle.size, particle.size);
+        }
+    }
+    
+    /**
+     * Draws UI overlays
+     */
+    private void drawUIOverlays(Graphics2D g2d) {
+        if (playing) {
+            // Draw enhanced score overlay with better positioning and style
+            int scoreX = 20; // Position on left side to avoid apple overlap
+            int scoreY = 20;
+            int scoreWidth = 180;
+            int scoreHeight = 60; // Reduced height since we removed level
+            
+            // Main score panel with gradient-like effect
+            g2d.setColor(new Color(0, 0, 0, 180));
+            g2d.fillRoundRect(scoreX, scoreY, scoreWidth, scoreHeight, 15, 15);
+            
+            // Add subtle border
+            g2d.setColor(new Color(255, 255, 255, 60));
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawRoundRect(scoreX, scoreY, scoreWidth, scoreHeight, 15, 15);
+            
+            // Add inner highlight
+            g2d.setColor(new Color(255, 255, 255, 20));
+            g2d.fillRoundRect(scoreX + 2, scoreY + 2, scoreWidth - 4, 20, 13, 13);
+            
+            // Score text with enhanced styling
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            g2d.drawString("🎯 SCORE: " + score, scoreX + 15, scoreY + 25);
+            
+            // Best score with different styling
+            g2d.setColor(new Color(255, 215, 0)); // Gold color for best score
+            g2d.setFont(new Font("Segoe UI", Font.BOLD, 16));
+            g2d.drawString("🏆 BEST: " + bestScore, scoreX + 15, scoreY + 50);
+            
+            // Add small decorative elements
+            g2d.setColor(new Color(255, 255, 255, 40));
+            g2d.fillOval(scoreX + scoreWidth - 25, scoreY + 10, 8, 8);
+            g2d.fillOval(scoreX + scoreWidth - 15, scoreY + 20, 6, 6);
+        }
+    }
+    
+    /**
+     * Draws particle effects (legacy method)
+     */
+    private void drawParticles(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        for (Particle particle : particles) {
+            float alpha = (float) particle.life / PARTICLE_LIFETIME;
+            Color particleColor = new Color(
+                particle.color.getRed(),
+                particle.color.getGreen(),
+                particle.color.getBlue(),
+                (int) (255 * alpha)
+            );
+            g2d.setColor(particleColor);
+            g2d.fillOval(particle.x, particle.y, particle.size, particle.size);
+        }
+        
+        g2d.dispose();
     }
 
     /**
@@ -532,7 +854,49 @@ public class GameCourt extends JPanel {
      */
     @Override
     public Dimension getPreferredSize() {
-        return new Dimension(BOARD_WIDTH, BOARD_HEIGHT);
+        return new Dimension(boardWidth, boardHeight);
+    }
+    
+    /**
+     * Makes the game board responsive to window resizing
+     */
+    @Override
+    public Dimension getMinimumSize() {
+        return new Dimension(400, 300);
+    }
+    
+    /**
+     * Handles window resize events for responsive layout
+     */
+    @Override
+    public void setBounds(int x, int y, int width, int height) {
+        super.setBounds(x, y, width, height);
+        // Adjust game elements for new size if needed
+        repaint();
+    }
+    
+    /**
+     * Updates the board size for responsive gameplay
+     */
+    public void updateBoardSize(int newWidth, int newHeight) {
+        boardWidth = newWidth;
+        boardHeight = newHeight;
+        
+        // Update game objects with new boundaries
+        if (snake != null) {
+            snake.updateBoardSize(boardWidth, boardHeight);
+        }
+        if (apple != null) {
+            apple.updateBoardSize(boardWidth, boardHeight);
+        }
+        if (goldenApple != null) {
+            goldenApple.updateBoardSize(boardWidth, boardHeight);
+        }
+        if (poisonApple != null) {
+            poisonApple.updateBoardSize(boardWidth, boardHeight);
+        }
+        
+        repaint();
     }
     
     /**

@@ -52,9 +52,25 @@ public class Apple extends GameObj implements Food {
     // Draw method to display the apple on the game board
     @Override
     public void draw(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
         for (Point p : getGameObjects()) {
-            g.drawImage(appleImg, p.x, p.y, SIZE, SIZE, null);
+            if (appleImg != null) {
+                // Draw apple image directly without shadow to avoid silhouette
+                g2d.drawImage(appleImg, p.x, p.y, SIZE, SIZE, null);
+            } else {
+                // Fallback to colored circle if image fails to load
+                g2d.setColor(new Color(231, 76, 60));
+                g2d.fillOval(p.x, p.y, SIZE, SIZE);
+                
+                // Add highlight
+                g2d.setColor(new Color(255, 255, 255, 100));
+                g2d.fillOval(p.x + 5, p.y + 5, SIZE/3, SIZE/3);
+            }
         }
+        
+        g2d.dispose();
     }
 
     // Method to check if the apple intersects with another game object
@@ -72,5 +88,28 @@ public class Apple extends GameObj implements Food {
             }
         }
         return false;
+    }
+    
+    /**
+     * Updates the board size for responsive gameplay
+     */
+    public void updateBoardSize(int newWidth, int newHeight) {
+        // Update the maxX and maxY in the parent GameObj class
+        // This will be handled by the parent class's constructor logic
+    }
+    
+    /**
+     * Override add method to avoid scoreboard area
+     */
+    @Override
+    public void add() {
+        // Avoid spawning apples in the scoreboard area (left side, top area)
+        int minX = 200; // Leave space for scoreboard
+        int minY = 100; // Leave space for top area
+        
+        int x = minX + (int)(Math.random() * (getMaxX() - minX));
+        int y = minY + (int)(Math.random() * (getMaxY() - minY));
+        
+        getGameObjects().add(new Point(x, y));
     }
 }

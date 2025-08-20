@@ -1,5 +1,5 @@
 snake,20,20
-apple,401,340
-golden,280,279
+apple,123,296
+golden,26,236
 3,3
 0

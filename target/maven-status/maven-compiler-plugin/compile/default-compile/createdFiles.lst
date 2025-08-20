@@ -1,7 +1,6 @@
 org/cis1200/snake/PoisonApple.class
 org/cis1200/snake/GameCourt.class
 org/cis1200/snake/GameCourt$GameState.class
-org/cis1200/Game.class
 org/cis1200/snake/GameObj.class
 org/cis1200/snake/Apple.class
 org/cis1200/snake/RunSnake.class

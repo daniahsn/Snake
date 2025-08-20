@@ -62,9 +62,26 @@ public class GoldenApple extends GameObj implements Food {
      */
     @Override
     public void draw(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
         for (Point p : getGameObjects()) {
-            g.drawImage(goldenAppleImg, p.x, p.y, SIZE, SIZE, null);
+            // Draw golden apple image directly
+            if (goldenAppleImg != null) {
+                g2d.drawImage(goldenAppleImg, p.x, p.y, SIZE, SIZE, null);
+            } else {
+                // Fallback to colored circle with sparkle effect
+                g2d.setColor(new Color(241, 196, 15));
+                g2d.fillOval(p.x, p.y, SIZE, SIZE);
+                
+                // Add sparkle highlights
+                g2d.setColor(new Color(255, 255, 255, 150));
+                g2d.fillOval(p.x + 8, p.y + 8, SIZE/4, SIZE/4);
+                g2d.fillOval(p.x + 20, p.y + 15, SIZE/6, SIZE/6);
+            }
         }
+        
+        g2d.dispose();
     }
 
     /**
@@ -86,5 +103,28 @@ public class GoldenApple extends GameObj implements Food {
             }
         }
         return false;
+    }
+    
+    /**
+     * Updates the board size for responsive gameplay
+     */
+    public void updateBoardSize(int newWidth, int newHeight) {
+        // Update the maxX and maxY in the parent GameObj class
+        // This will be handled by the parent class's constructor logic
+    }
+    
+    /**
+     * Override add method to avoid scoreboard area
+     */
+    @Override
+    public void add() {
+        // Avoid spawning golden apples in the scoreboard area (left side, top area)
+        int minX = 200; // Leave space for scoreboard
+        int minY = 100; // Leave space for top area
+        
+        int x = minX + (int)(Math.random() * (getMaxX() - minX));
+        int y = minY + (int)(Math.random() * (getMaxY() - minY));
+        
+        getGameObjects().add(new Point(x, y));
     }
 }

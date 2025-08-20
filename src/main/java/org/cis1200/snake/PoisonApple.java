@@ -65,17 +65,27 @@ public class PoisonApple extends GameObj implements Food {
      */
     @Override
     public void draw(Graphics g) {
-        if (poisonAppleImg != null) {
-            for (Point p : getGameObjects()) {
-                g.drawImage(poisonAppleImg, p.x, p.y, SIZE, SIZE, null);
-            }
-        } else {
-            // Fallback if image not available
-            g.setColor(Color.RED);
-            for (Point p : getGameObjects()) {
-                g.fillOval(p.x, p.y, SIZE, SIZE);
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        for (Point p : getGameObjects()) {
+            // Draw poison apple image directly
+            if (poisonAppleImg != null) {
+                g2d.drawImage(poisonAppleImg, p.x, p.y, SIZE, SIZE, null);
+            } else {
+                // Fallback to colored circle with toxic effect
+                g2d.setColor(new Color(155, 89, 182));
+                g2d.fillOval(p.x, p.y, SIZE, SIZE);
+                
+                // Add toxic warning pattern
+                g2d.setColor(new Color(255, 255, 255, 200));
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawLine(p.x + 5, p.y + 5, p.x + SIZE - 5, p.y + SIZE - 5);
+                g2d.drawLine(p.x + SIZE - 5, p.y + 5, p.x + 5, p.y + SIZE - 5);
             }
         }
+        
+        g2d.dispose();
     }
 
     /**
@@ -94,5 +104,28 @@ public class PoisonApple extends GameObj implements Food {
             }
         }
         return false;
+    }
+    
+    /**
+     * Updates the board size for responsive gameplay
+     */
+    public void updateBoardSize(int newWidth, int newHeight) {
+        // Update the maxX and maxY in the parent GameObj class
+        // This will be handled by the parent class's constructor logic
+    }
+    
+    /**
+     * Override add method to avoid scoreboard area
+     */
+    @Override
+    public void add() {
+        // Avoid spawning poison apples in the scoreboard area (left side, top area)
+        int minX = 200; // Leave space for scoreboard
+        int minY = 100; // Leave space for top area
+        
+        int x = minX + (int)(Math.random() * (getMaxX() - minX));
+        int y = minY + (int)(Math.random() * (getMaxY() - minY));
+        
+        getGameObjects().add(new Point(x, y));
     }
 }

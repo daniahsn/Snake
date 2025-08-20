@@ -244,4 +244,18 @@ public abstract class GameObj {
     public void remove(int index) {
         gameObjects.remove(index);
     }
+    
+    /**
+     * Get the maximum X coordinate
+     */
+    public int getMaxX() {
+        return maxX;
+    }
+    
+    /**
+     * Get the maximum Y coordinate
+     */
+    public int getMaxY() {
+        return maxY;
+    }
 }
